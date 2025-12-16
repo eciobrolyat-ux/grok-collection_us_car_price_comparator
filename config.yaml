@@ -1,0 +1,15 @@
+rapidapi_key: "put-your-key-here-later"
+regions:
+  washington_dc:
+    zip: "20001"
+    radius: 100
+    name: "Washington DC"
+  houston:
+    zip: "77002"
+    radius: 100
+    name: "Houston TX"
+
+targets:
+  - year: 2015
+    make: Chevrolet
+    model: Corvette
