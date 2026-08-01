@@ -1,10 +1,16 @@
-import requests, yaml, duckdb, pandas as pd, time
+import os, requests, yaml, duckdb, pandas as pd, time
 from datetime import datetime
 from tqdm import tqdm
+from vin_decoder import decode_vin_nhtsa
 
 with open("config.yaml") as f:
     config = yaml.safe_load(f)
 
+rapidapi_key = os.environ.get("RAPIDAPI_KEY", config.get("rapidapi_key"))
+if not rapidapi_key or rapidapi_key == "put-your-key-here-later":
+    raise SystemExit("Set the RAPIDAPI_KEY environment variable before running the scraper.")
+
+os.makedirs("data", exist_ok=True)
 con = duckdb.connect("data/listings.duckdb")
 con.execute("""
 CREATE TABLE IF NOT EXISTS listings (
@@ -28,7 +34,7 @@ CREATE TABLE IF NOT EXISTS listings (
 def cars_com_search(year, make, model, zip_code, radius=100, page=1):
     url = "https://cars-com.p.rapidapi.com/search"
     headers = {
-        "X-RapidAPI-Key": config["rapidapi_key"],
+        "X-RapidAPI-Key": rapidapi_key,
         "X-RapidAPI-Host": "cars-com.p.rapidapi.com"
     }
     params = {

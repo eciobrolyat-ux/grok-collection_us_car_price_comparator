@@ -1,4 +1,5 @@
-rapidapi_key: "put-your-key-here-later"
+# RapidAPI key is read from the RAPIDAPI_KEY environment variable.
+# (Optionally set rapidapi_key here for local dev, but never commit a real key.)
 regions:
   washington_dc:
     zip: "20001"
