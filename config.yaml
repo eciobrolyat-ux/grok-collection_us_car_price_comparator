@@ -1,8 +1,8 @@
-# API keys are read from environment variables:
-#   RAPIDAPI_KEY       - required if "cars_com" is in `sources`
-#   MARKETCHECK_API_KEY - required if "marketcheck" is in `sources`
-# (Optionally set rapidapi_key/marketcheck_api_key below for local dev,
-# but never commit a real key.)
+# API keys are read from a keybank vault at runtime (never stored in this
+# file). Required secrets, by name:
+#   rapid_api_key         - required if "cars_com" is in `sources`
+#   marketcheck_api_key    - required if "marketcheck" is in `sources`
+#   marketcheck_api_secret - required if "marketcheck" is in `sources`
 
 sources:
   - cars_com

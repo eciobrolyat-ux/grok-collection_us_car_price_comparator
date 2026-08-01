@@ -7,11 +7,19 @@ Price disparity tool for cars in the different regions of the USA
 pip install -r requirements.txt
 ```
 
-Set API keys as environment variables (do not put real keys in `config.yaml`):
+API keys are pulled from a [keybank](https://pypi.org/project/keybank/) vault at runtime — never store
+real keys in `config.yaml`. Store these secrets once, ahead of time:
 
 ```
-export RAPIDAPI_KEY=...        # required if "cars_com" is in config.yaml's `sources`
-export MARKETCHECK_API_KEY=... # required if "marketcheck" is in config.yaml's `sources`
+keybank set rapid_api_key          # required if "cars_com" is in config.yaml's `sources`
+keybank set marketcheck_api_key    # required if "marketcheck" is in config.yaml's `sources`
+keybank set marketcheck_api_secret # required if "marketcheck" is in config.yaml's `sources`
+```
+
+Then, before running the scraper, unlock the vault yourself in your own terminal:
+
+```
+export KEYBANK_PASSWORD=...
 ```
 
 Edit `config.yaml` to choose which sources, regions, and target vehicles (year/make/model)
@@ -33,9 +41,10 @@ rather than duplicating them, so it's safe to re-run after a failed or partial s
 ## Data sources
 
 - **cars.com** (via RapidAPI)
-- **MarketCheck** — field names in `scraper.py` follow MarketCheck's documented v2 API
-  schema; verify against a live response for your account/plan before relying on it in
-  production.
+- **MarketCheck** — authenticates via OAuth2 client-credentials (key/secret exchanged for a
+  short-lived bearer token once per scraper run). Field names in `scraper.py` follow
+  MarketCheck's documented v2 API schema; verify against a live response for your
+  account/plan before relying on it in production.
 
 Both sources tag rows with a `source` column, so results can be compared or filtered by
 provider in the dashboard queries.

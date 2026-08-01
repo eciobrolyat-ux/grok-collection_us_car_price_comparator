@@ -10,15 +10,26 @@ def load_config(path="config.yaml"):
 
 
 def get_api_keys(config, active_sources):
-    rapidapi_key = os.environ.get("RAPIDAPI_KEY", config.get("rapidapi_key"))
-    if "cars_com" in active_sources and (not rapidapi_key or rapidapi_key == "put-your-key-here-later"):
-        raise SystemExit("Set the RAPIDAPI_KEY environment variable before running the scraper.")
+    """Pulls secrets from the keybank vault in-process. The decrypted values
+    never get printed/logged here -- they flow straight into request
+    headers/params in the search functions below."""
+    from keybank import get_secret
+    rapid_api_key = get_secret("rapid_api_key") if "cars_com" in active_sources else None
+    marketcheck_api_key = get_secret("marketcheck_api_key") if "marketcheck" in active_sources else None
+    marketcheck_api_secret = get_secret("marketcheck_api_secret") if "marketcheck" in active_sources else None
+    return rapid_api_key, marketcheck_api_key, marketcheck_api_secret
 
-    marketcheck_api_key = os.environ.get("MARKETCHECK_API_KEY", config.get("marketcheck_api_key"))
-    if "marketcheck" in active_sources and not marketcheck_api_key:
-        raise SystemExit("Set the MARKETCHECK_API_KEY environment variable before running the scraper.")
 
-    return rapidapi_key, marketcheck_api_key
+def get_marketcheck_access_token(api_key, api_secret):
+    """Exchanges the MarketCheck key/secret pair for a short-lived bearer
+    token via OAuth2 client-credentials, once per scraper run."""
+    r = requests.post(
+        "https://api.marketcheck.com/oauth2/token",
+        auth=(api_key, api_secret),
+        data={"grant_type": "client_credentials"},
+    )
+    r.raise_for_status()
+    return r.json()["access_token"]
 
 
 def ensure_schema(con):
@@ -119,7 +130,7 @@ def cars_com_search(year, make, model, zip_code, radius, page, api_key):
     ]
 
 
-def marketcheck_search(year, make, model, zip_code, radius, page, api_key):
+def marketcheck_search(year, make, model, zip_code, radius, page, access_token):
     """MarketCheck active listings search. Returns a list of normalized dicts.
 
     NOTE: field names below follow MarketCheck's documented v2 schema
@@ -128,14 +139,14 @@ def marketcheck_search(year, make, model, zip_code, radius, page, api_key):
     """
     url = "https://api.marketcheck.com/v2/search/car/active"
     rows = 50
+    headers = {"Authorization": f"Bearer {access_token}"}
     params = {
-        "api_key": api_key,
         "year": year, "make": make, "model": model,
         "zip": zip_code, "radius": radius,
         "car_type": "used",
         "rows": rows, "start": (page - 1) * rows,
     }
-    r = requests.get(url, params=params)
+    r = requests.get(url, headers=headers, params=params)
     r.raise_for_status()
     raw_listings = r.json().get("listings", [])
     return [
@@ -159,12 +170,12 @@ SOURCE_FNS = {
 }
 
 
-def scrape_target(con, get_decoded, search_fn, api_key, source_name, region, target, today):
+def scrape_target(con, get_decoded, search_fn, auth_value, source_name, region, target, today):
     page = 1
     while True:
         listings = search_fn(
             target["year"], target["make"], target["model"],
-            region["zip"], region["radius"], page, api_key
+            region["zip"], region["radius"], page, auth_value
         )
         if not listings:
             break
@@ -187,8 +198,13 @@ def scrape_target(con, get_decoded, search_fn, api_key, source_name, region, tar
 def main():
     config = load_config()
     active_sources = config.get("sources", ["cars_com"])
-    rapidapi_key, marketcheck_api_key = get_api_keys(config, active_sources)
-    api_keys = {"cars_com": rapidapi_key, "marketcheck": marketcheck_api_key}
+    rapid_api_key, marketcheck_api_key, marketcheck_api_secret = get_api_keys(config, active_sources)
+
+    auth_values = {}
+    if "cars_com" in active_sources:
+        auth_values["cars_com"] = rapid_api_key
+    if "marketcheck" in active_sources:
+        auth_values["marketcheck"] = get_marketcheck_access_token(marketcheck_api_key, marketcheck_api_secret)
 
     os.makedirs("data", exist_ok=True)
     con = duckdb.connect("data/listings.duckdb")
@@ -211,7 +227,7 @@ def main():
             for target in tqdm(config["targets"], desc=source_name):
                 try:
                     scrape_target(
-                        con, get_decoded, search_fn, api_keys[source_name],
+                        con, get_decoded, search_fn, auth_values[source_name],
                         source_name, region, target, today
                     )
                 except Exception as e:
