@@ -1,48 +1,98 @@
-import os, requests, yaml, duckdb, pandas as pd, time
+import os, sys, requests, yaml, duckdb, time
 from datetime import datetime
 from tqdm import tqdm
 from vin_decoder import decode_vin_nhtsa
 
-with open("config.yaml") as f:
-    config = yaml.safe_load(f)
 
-active_sources = config.get("sources", ["cars_com"])
-
-rapidapi_key = os.environ.get("RAPIDAPI_KEY", config.get("rapidapi_key"))
-if "cars_com" in active_sources and (not rapidapi_key or rapidapi_key == "put-your-key-here-later"):
-    raise SystemExit("Set the RAPIDAPI_KEY environment variable before running the scraper.")
-
-marketcheck_api_key = os.environ.get("MARKETCHECK_API_KEY", config.get("marketcheck_api_key"))
-if "marketcheck" in active_sources and not marketcheck_api_key:
-    raise SystemExit("Set the MARKETCHECK_API_KEY environment variable before running the scraper.")
-
-os.makedirs("data", exist_ok=True)
-con = duckdb.connect("data/listings.duckdb")
-con.execute("""
-CREATE TABLE IF NOT EXISTS listings (
-    scrape_date DATE,
-    region VARCHAR,
-    source VARCHAR,
-    vin VARCHAR,
-    year INTEGER,
-    make VARCHAR,
-    model VARCHAR,
-    trim VARCHAR,
-    price INTEGER,
-    mileage INTEGER,
-    exterior_color VARCHAR,
-    days_on_market INTEGER,
-    url VARCHAR,
-    raw_json VARCHAR
-)
-""")
+def load_config(path="config.yaml"):
+    with open(path) as f:
+        return yaml.safe_load(f)
 
 
-def cars_com_search(year, make, model, zip_code, radius=100, page=1):
+def get_api_keys(config, active_sources):
+    rapidapi_key = os.environ.get("RAPIDAPI_KEY", config.get("rapidapi_key"))
+    if "cars_com" in active_sources and (not rapidapi_key or rapidapi_key == "put-your-key-here-later"):
+        raise SystemExit("Set the RAPIDAPI_KEY environment variable before running the scraper.")
+
+    marketcheck_api_key = os.environ.get("MARKETCHECK_API_KEY", config.get("marketcheck_api_key"))
+    if "marketcheck" in active_sources and not marketcheck_api_key:
+        raise SystemExit("Set the MARKETCHECK_API_KEY environment variable before running the scraper.")
+
+    return rapidapi_key, marketcheck_api_key
+
+
+def ensure_schema(con):
+    con.execute("""
+    CREATE TABLE IF NOT EXISTS listings (
+        scrape_date DATE,
+        region VARCHAR,
+        source VARCHAR,
+        vin VARCHAR,
+        year INTEGER,
+        make VARCHAR,
+        model VARCHAR,
+        trim VARCHAR,
+        price INTEGER,
+        mileage INTEGER,
+        exterior_color VARCHAR,
+        days_on_market INTEGER,
+        url VARCHAR,
+        raw_json VARCHAR
+    )
+    """)
+    # Decoded VIN specs are permanent, unlike the daily price snapshots in
+    # `listings` above, so they get their own table and are decoded once.
+    con.execute("""
+    CREATE TABLE IF NOT EXISTS vehicles (
+        vin VARCHAR,
+        trim VARCHAR,
+        series VARCHAR,
+        body_class VARCHAR,
+        engine VARCHAR,
+        drive_type VARCHAR,
+        decoded_date DATE
+    )
+    """)
+
+
+def make_vin_cache(con):
+    """Returns a get_decoded(vin) function backed by the `vehicles` table,
+    so a given VIN is only ever sent to NHTSA once."""
+    cache = {}
+    for vin, trim, series, body_class, engine, drive_type in con.execute(
+        "SELECT vin, trim, series, body_class, engine, drive_type FROM vehicles"
+    ).fetchall():
+        cache[vin] = {
+            "trim": trim, "series": series, "body_class": body_class,
+            "engine": engine, "drive_type": drive_type,
+        }
+
+    def get_decoded(vin):
+        if not vin:
+            return {}
+        if vin in cache:
+            return cache[vin]
+        try:
+            decoded = decode_vin_nhtsa(vin)
+        except Exception as e:
+            print(f"  WARN: VIN decode failed for {vin}: {e}")
+            return {}
+        cache[vin] = decoded
+        con.execute(
+            "INSERT INTO vehicles VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [vin, decoded.get("trim", ""), decoded.get("series", ""), decoded.get("body_class", ""),
+             decoded.get("engine", ""), decoded.get("drive_type", ""), datetime.today().date()],
+        )
+        return decoded
+
+    return get_decoded
+
+
+def cars_com_search(year, make, model, zip_code, radius, page, api_key):
     """cars.com listings via RapidAPI. Returns a list of normalized dicts."""
     url = "https://cars-com.p.rapidapi.com/search"
     headers = {
-        "X-RapidAPI-Key": rapidapi_key,
+        "X-RapidAPI-Key": api_key,
         "X-RapidAPI-Host": "cars-com.p.rapidapi.com"
     }
     params = {
@@ -52,6 +102,7 @@ def cars_com_search(year, make, model, zip_code, radius=100, page=1):
         "page": page, "page_size": 100
     }
     r = requests.get(url, headers=headers, params=params)
+    r.raise_for_status()
     raw_listings = r.json().get("data", [])
     return [
         {
@@ -68,7 +119,7 @@ def cars_com_search(year, make, model, zip_code, radius=100, page=1):
     ]
 
 
-def marketcheck_search(year, make, model, zip_code, radius=100, page=1):
+def marketcheck_search(year, make, model, zip_code, radius, page, api_key):
     """MarketCheck active listings search. Returns a list of normalized dicts.
 
     NOTE: field names below follow MarketCheck's documented v2 schema
@@ -78,13 +129,14 @@ def marketcheck_search(year, make, model, zip_code, radius=100, page=1):
     url = "https://api.marketcheck.com/v2/search/car/active"
     rows = 50
     params = {
-        "api_key": marketcheck_api_key,
+        "api_key": api_key,
         "year": year, "make": make, "model": model,
         "zip": zip_code, "radius": radius,
         "car_type": "used",
         "rows": rows, "start": (page - 1) * rows,
     }
     r = requests.get(url, params=params)
+    r.raise_for_status()
     raw_listings = r.json().get("listings", [])
     return [
         {
@@ -101,56 +153,82 @@ def marketcheck_search(year, make, model, zip_code, radius=100, page=1):
     ]
 
 
-SOURCES = {
+SOURCE_FNS = {
     "cars_com": cars_com_search,
     "marketcheck": marketcheck_search,
 }
 
-today = datetime.today().date()
 
-for region_key, region in config["regions"].items():
-    print(f"\n=== Scraping region: {region['name']} ===")
-    for source_name in active_sources:
-        search_fn = SOURCES[source_name]
-        # Re-running the scraper the same day replaces that day's rows for
-        # this region/source instead of accumulating duplicates.
-        con.execute(
-            "DELETE FROM listings WHERE scrape_date = ? AND region = ? AND source = ?",
-            [today, region["name"], source_name],
+def scrape_target(con, get_decoded, search_fn, api_key, source_name, region, target, today):
+    page = 1
+    while True:
+        listings = search_fn(
+            target["year"], target["make"], target["model"],
+            region["zip"], region["radius"], page, api_key
         )
-        for target in tqdm(config["targets"], desc=source_name):
-            page = 1
-            while True:
-                listings = search_fn(
-                    target["year"], target["make"], target["model"],
-                    region["zip"], region["radius"], page
-                )
-                if not listings:
-                    break
-                for car in listings:
-                    vin = car["vin"]
-                    decoded = decode_vin_nhtsa(vin) if vin else {}
-                    con.execute("""
-                    INSERT INTO listings VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        if not listings:
+            break
+        for car in listings:
+            decoded = get_decoded(car["vin"])
+            con.execute("""
+            INSERT INTO listings VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
+            """, [
+                today, region["name"], source_name, car["vin"],
+                target["year"], target["make"], target["model"],
+                car["trim"], car["price"], car["mileage"], car["exterior_color"],
+                car["days_on_market"], car["url"], str(car["raw"]),
+            ])
+        page += 1
+        time.sleep(1.5)  # be nice
+
+
+def main():
+    config = load_config()
+    active_sources = config.get("sources", ["cars_com"])
+    rapidapi_key, marketcheck_api_key = get_api_keys(config, active_sources)
+    api_keys = {"cars_com": rapidapi_key, "marketcheck": marketcheck_api_key}
+
+    os.makedirs("data", exist_ok=True)
+    con = duckdb.connect("data/listings.duckdb")
+    ensure_schema(con)
+    get_decoded = make_vin_cache(con)
+
+    today = datetime.today().date()
+    failures = []
+
+    for region_key, region in config["regions"].items():
+        print(f"\n=== Scraping region: {region['name']} ===")
+        for source_name in active_sources:
+            search_fn = SOURCE_FNS[source_name]
+            # Re-running the scraper the same day replaces that day's rows for
+            # this region/source instead of accumulating duplicates.
+            con.execute(
+                "DELETE FROM listings WHERE scrape_date = ? AND region = ? AND source = ?",
+                [today, region["name"], source_name],
+            )
+            for target in tqdm(config["targets"], desc=source_name):
+                try:
+                    scrape_target(
+                        con, get_decoded, search_fn, api_keys[source_name],
+                        source_name, region, target, today
                     )
-                    """, [
-                        today,
-                        region["name"],
-                        source_name,
-                        vin,
-                        target["year"],
-                        target["make"],
-                        target["model"],
-                        (decoded.get("trim", "") + " " + car["trim"]).strip(),
-                        car["price"],
-                        car["mileage"],
-                        car["exterior_color"],
-                        car["days_on_market"],
-                        car["url"],
-                        str(car["raw"]),
-                    ])
-                page += 1
-                time.sleep(1.5)  # be nice
-con.close()
-print("Done! Run `streamlit run dashboard.py` to explore the data.")
+                except Exception as e:
+                    msg = f"{region['name']} / {source_name} / {target['year']} {target['make']} {target['model']}: {e}"
+                    print(f"  ERROR: {msg}")
+                    failures.append(msg)
+
+    con.close()
+
+    if failures:
+        print(f"\nDone with {len(failures)} failure(s):")
+        for f in failures:
+            print(" -", f)
+        sys.exit(1)
+
+    print("\nDone! Run `streamlit run dashboard.py` to explore the data.")
+
+
+if __name__ == "__main__":
+    main()

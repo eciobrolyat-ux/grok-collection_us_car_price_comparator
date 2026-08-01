@@ -14,14 +14,18 @@ WITH latest AS (
     WHERE year = ? AND make ILIKE ? AND model ILIKE ?
 )
 SELECT
-    region,
-    median(price) AS median_price,
-    avg(mileage) AS avg_mileage,
-    avg(price::DOUBLE / NULLIF(mileage, 0)) AS dollar_per_mile,
-    100.0 * sum(CASE WHEN trim ILIKE '%Z51%' THEN 1 ELSE 0 END) / count(*) AS pct_z51
+    latest.region,
+    median(latest.price) AS median_price,
+    avg(latest.mileage) AS avg_mileage,
+    avg(latest.price::DOUBLE / NULLIF(latest.mileage, 0)) AS dollar_per_mile,
+    100.0 * sum(CASE
+        WHEN latest.trim ILIKE '%Z51%' OR v.trim ILIKE '%Z51%' OR v.series ILIKE '%Z51%'
+        THEN 1 ELSE 0
+    END) / count(*) AS pct_z51
 FROM latest
-WHERE rn = 1
-GROUP BY region
+LEFT JOIN vehicles v ON v.vin = latest.vin
+WHERE latest.rn = 1
+GROUP BY latest.region
 ORDER BY median_price
 """, [year, f"%{make}%", f"%{model}%"]).df()
 
