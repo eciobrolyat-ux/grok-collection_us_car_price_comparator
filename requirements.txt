@@ -4,3 +4,4 @@ duckdb
 pyyaml
 tqdm
 streamlit
+cryptography

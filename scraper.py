@@ -2,8 +2,12 @@ import requests, yaml, duckdb, pandas as pd, time
 from datetime import datetime
 from tqdm import tqdm
 
+from keybank import get_secret
+
 with open("config.yaml") as f:
     config = yaml.safe_load(f)
+
+RAPIDAPI_KEY = get_secret("rapidapi_key", config.get("rapidapi_key"))
 
 con = duckdb.connect("data/listings.duckdb")
 con.execute("""
@@ -28,7 +32,7 @@ CREATE TABLE IF NOT EXISTS listings (
 def cars_com_search(year, make, model, zip_code, radius=100, page=1):
     url = "https://cars-com.p.rapidapi.com/search"
     headers = {
-        "X-RapidAPI-Key": config["rapidapi_key"],
+        "X-RapidAPI-Key": RAPIDAPI_KEY,
         "X-RapidAPI-Host": "cars-com.p.rapidapi.com"
     }
     params = {

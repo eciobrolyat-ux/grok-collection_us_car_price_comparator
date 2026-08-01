@@ -1,0 +1,7 @@
+data/
+*.duckdb
+.keybank/
+*.env
+.env
+__pycache__/
+*.pyc

@@ -1,4 +1,5 @@
-rapidapi_key: "put-your-key-here-later"
+# rapidapi_key lives in your local keybank vault, not here.
+# Run: python keybank.py init && python keybank.py set rapidapi_key
 regions:
   washington_dc:
     zip: "20001"
