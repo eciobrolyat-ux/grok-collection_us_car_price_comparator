@@ -11,10 +11,12 @@ API keys are pulled from a [keybank](https://pypi.org/project/keybank/) vault at
 real keys in `config.yaml`. Store these secrets once, ahead of time:
 
 ```
-keybank set rapid_api_key          # required if "cars_com" is in config.yaml's `sources`
+keybank set rapidapi_key           # required if "cars_com" is in config.yaml's `sources`
 keybank set marketcheck_api_key    # required if "marketcheck" is in config.yaml's `sources`
-keybank set marketcheck_api_secret # required if "marketcheck" is in config.yaml's `sources`
+keybank set marketcheck_api-secret # required if "marketcheck" is in config.yaml's `sources`
 ```
+
+(run `keybank list` any time to confirm the exact secret names in your vault)
 
 Then, before running the scraper, unlock the vault yourself in your own terminal:
 

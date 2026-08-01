@@ -1,8 +1,8 @@
 # API keys are read from a keybank vault at runtime (never stored in this
-# file). Required secrets, by name:
-#   rapid_api_key         - required if "cars_com" is in `sources`
-#   marketcheck_api_key    - required if "marketcheck" is in `sources`
-#   marketcheck_api_secret - required if "marketcheck" is in `sources`
+# file). Required secrets, by name (run `keybank list` to confirm yours):
+#   rapidapi_key            - required if "cars_com" is in `sources`
+#   marketcheck_api_key     - required if "marketcheck" is in `sources`
+#   marketcheck_api-secret  - required if "marketcheck" is in `sources`
 
 sources:
   - cars_com

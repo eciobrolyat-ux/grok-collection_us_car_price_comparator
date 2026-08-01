@@ -14,9 +14,9 @@ def get_api_keys(config, active_sources):
     never get printed/logged here -- they flow straight into request
     headers/params in the search functions below."""
     from keybank import get_secret
-    rapid_api_key = get_secret("rapid_api_key") if "cars_com" in active_sources else None
+    rapid_api_key = get_secret("rapidapi_key") if "cars_com" in active_sources else None
     marketcheck_api_key = get_secret("marketcheck_api_key") if "marketcheck" in active_sources else None
-    marketcheck_api_secret = get_secret("marketcheck_api_secret") if "marketcheck" in active_sources else None
+    marketcheck_api_secret = get_secret("marketcheck_api-secret") if "marketcheck" in active_sources else None
     return rapid_api_key, marketcheck_api_key, marketcheck_api_secret
 
 
