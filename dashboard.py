@@ -25,4 +25,20 @@ GROUP BY region
 ORDER BY median_price
 """, [year, f"%{make}%", f"%{model}%"]).df()
 
+st.subheader("Latest snapshot by region")
 st.table(df)
+
+trend_df = con.execute("""
+SELECT scrape_date, region, median(price) AS median_price
+FROM listings
+WHERE year = ? AND make ILIKE ? AND model ILIKE ?
+GROUP BY scrape_date, region
+ORDER BY scrape_date
+""", [year, f"%{make}%", f"%{model}%"]).df()
+
+st.subheader("Median price trend over time")
+if trend_df["scrape_date"].nunique() > 1:
+    pivot = trend_df.pivot(index="scrape_date", columns="region", values="median_price")
+    st.line_chart(pivot)
+else:
+    st.caption("Not enough historical data yet for a trend chart — run the scraper on more than one day.")

@@ -1,5 +1,13 @@
-# RapidAPI key is read from the RAPIDAPI_KEY environment variable.
-# (Optionally set rapidapi_key here for local dev, but never commit a real key.)
+# API keys are read from environment variables:
+#   RAPIDAPI_KEY       - required if "cars_com" is in `sources`
+#   MARKETCHECK_API_KEY - required if "marketcheck" is in `sources`
+# (Optionally set rapidapi_key/marketcheck_api_key below for local dev,
+# but never commit a real key.)
+
+sources:
+  - cars_com
+  - marketcheck
+
 regions:
   washington_dc:
     zip: "20001"
@@ -9,8 +17,33 @@ regions:
     zip: "77002"
     radius: 100
     name: "Houston TX"
+  los_angeles:
+    zip: "90001"
+    radius: 100
+    name: "Los Angeles CA"
+  miami:
+    zip: "33101"
+    radius: 100
+    name: "Miami FL"
+  chicago:
+    zip: "60601"
+    radius: 100
+    name: "Chicago IL"
+  denver:
+    zip: "80202"
+    radius: 100
+    name: "Denver CO"
 
 targets:
   - year: 2015
     make: Chevrolet
     model: Corvette
+  - year: 2020
+    make: Ford
+    model: F-150
+  - year: 2018
+    make: Toyota
+    model: Tacoma
+  - year: 2016
+    make: Porsche
+    model: "911"
