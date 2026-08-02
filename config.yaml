@@ -39,8 +39,19 @@ regions:
     radius: 100
     name: "Phoenix AZ"
 
+# A target can use a single `year`, or `year_min`/`year_max` for a range --
+# the scraper issues one search per year in the range (no reliance on a
+# provider's own range-filtering support). Widen year_min for older years
+# (e.g. down to 1950) if you want them, but most listing APIs like
+# cars.com/MarketCheck mostly carry current-generation used cars, so pre-
+# 1990s years will likely return few or no results while still costing
+# a call each -- worth checking your provider's actual coverage first.
+# Each year x region x source is a separate API call, so widening this
+# multiplies quota usage fast (e.g. 10 years x 7 regions = 70 calls for
+# just this one target).
 targets:
-  - year: 2015
+  - year_min: 2017
+    year_max: 2026
     make: Chevrolet
     model: Corvette
   # - year: 2020

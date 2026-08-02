@@ -185,6 +185,19 @@ SOURCE_FNS = {
 }
 
 
+def expand_target_years(target):
+    """A target with year_min/year_max expands into one single-year target
+    per year in that range (each year is a separate API call, since we
+    can't rely on every provider supporting range filtering the same way).
+    A target with a plain `year` passes through unchanged."""
+    if "year_min" in target and "year_max" in target:
+        return [
+            {"year": y, "make": target["make"], "model": target["model"]}
+            for y in range(target["year_min"], target["year_max"] + 1)
+        ]
+    return [target]
+
+
 def scrape_target(con, get_decoded, search_fn, auth_value, source_name, region, target, today):
     page = 1
     while True:
@@ -231,6 +244,8 @@ def main():
     today = datetime.today().date()
     failures = []
 
+    year_targets = [yt for target in config["targets"] for yt in expand_target_years(target)]
+
     for region_key, region in config["regions"].items():
         print(f"\n=== Scraping region: {region['name']} ===")
         for source_name in active_sources:
@@ -241,7 +256,7 @@ def main():
                 "DELETE FROM listings WHERE scrape_date = ? AND region = ? AND source = ?",
                 [today, region["name"], source_name],
             )
-            for target in tqdm(config["targets"], desc=source_name):
+            for target in tqdm(year_targets, desc=source_name):
                 try:
                     scrape_target(
                         con, get_decoded, search_fn, auth_values[source_name],
