@@ -110,17 +110,18 @@ def make_vin_cache(con):
 
 
 def cars_com_search(year, make, model, zip_code, radius, page, api_key):
-    """cars.com listings via RapidAPI. Returns a list of normalized dicts."""
+    """cars.com listings via RapidAPI. Returns (normalized dicts, page_size)."""
     url = "https://cars-com.p.rapidapi.com/search"
     headers = {
         "X-RapidAPI-Key": api_key,
         "X-RapidAPI-Host": "cars-com.p.rapidapi.com"
     }
+    page_size = 100
     params = {
         "year_min": year, "year_max": year,
         "make": make, "model": model,
         "zip": zip_code, "radius": radius,
-        "page": page, "page_size": 100
+        "page": page, "page_size": page_size
     }
     r = requests.get(url, headers=headers, params=params)
     _raise_with_body(r)
@@ -137,11 +138,11 @@ def cars_com_search(year, make, model, zip_code, radius, page, api_key):
             "raw": car,
         }
         for car in raw_listings
-    ]
+    ], page_size
 
 
 def marketcheck_search(year, make, model, zip_code, radius, page, api_key):
-    """MarketCheck active listings search. Returns a list of normalized dicts.
+    """MarketCheck active listings search. Returns (normalized dicts, page_size).
 
     Uses the basic api_key-as-query-param auth rather than OAuth2
     client-credentials -- the latter returned "invalid authentication
@@ -175,7 +176,7 @@ def marketcheck_search(year, make, model, zip_code, radius, page, api_key):
             "raw": car,
         }
         for car in raw_listings
-    ]
+    ], rows
 
 
 SOURCE_FNS = {
@@ -187,7 +188,7 @@ SOURCE_FNS = {
 def scrape_target(con, get_decoded, search_fn, auth_value, source_name, region, target, today):
     page = 1
     while True:
-        listings = search_fn(
+        listings, page_size = search_fn(
             target["year"], target["make"], target["model"],
             region["zip"], region["radius"], page, auth_value
         )
@@ -205,6 +206,8 @@ def scrape_target(con, get_decoded, search_fn, auth_value, source_name, region, 
                 car["trim"], car["price"], car["mileage"], car["exterior_color"],
                 car["days_on_market"], car["url"], str(car["raw"]),
             ])
+        if len(listings) < page_size:
+            break
         page += 1
         time.sleep(1.5)  # be nice
 
