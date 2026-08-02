@@ -36,6 +36,29 @@ ORDER BY median_price
 st.subheader("Latest snapshot by region")
 st.table(df)
 
+trim_price_df = con.execute("""
+WITH latest AS (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY vin ORDER BY scrape_date DESC) AS rn
+    FROM listings
+    WHERE year = ? AND make ILIKE ? AND model ILIKE ?
+)
+SELECT trim, region, median(price) AS median_price, count(*) AS num_listings
+FROM latest
+WHERE rn = 1 AND trim IS NOT NULL AND trim != ''
+GROUP BY trim, region
+""", [year, f"%{make}%", f"%{model}%"]).df()
+
+st.subheader("Median price by trim and region")
+st.caption("Comparing the same trim across regions avoids mixing base and loaded trims into one number.")
+if not trim_price_df.empty:
+    price_pivot = trim_price_df.pivot(index="trim", columns="region", values="median_price")
+    st.dataframe(price_pivot)
+    with st.expander("Listing counts behind each cell"):
+        count_pivot = trim_price_df.pivot(index="trim", columns="region", values="num_listings")
+        st.dataframe(count_pivot)
+else:
+    st.caption("No trim data available for this filter.")
+
 condition_df = con.execute("""
 WITH latest AS (
     SELECT *, ROW_NUMBER() OVER (PARTITION BY vin ORDER BY scrape_date DESC) AS rn
