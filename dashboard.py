@@ -14,22 +14,13 @@ WITH latest AS (
     WHERE year = ? AND make ILIKE ? AND model ILIKE ?
 )
 SELECT
-    latest.region,
-    median(latest.price) AS median_price,
-    avg(latest.mileage) AS avg_mileage,
-    avg(latest.price::DOUBLE / NULLIF(latest.mileage, 0)) AS dollar_per_mile,
-    sum(CASE
-        WHEN latest.trim ILIKE '%Z51%' OR v.trim ILIKE '%Z51%' OR v.series ILIKE '%Z51%'
-        THEN 1 ELSE 0
-    END) AS count_z51,
-    100.0 * sum(CASE
-        WHEN latest.trim ILIKE '%Z51%' OR v.trim ILIKE '%Z51%' OR v.series ILIKE '%Z51%'
-        THEN 1 ELSE 0
-    END) / count(*) AS pct_z51
+    region,
+    median(price) AS median_price,
+    avg(mileage) AS avg_mileage,
+    count(*) AS num_listings
 FROM latest
-LEFT JOIN vehicles v ON v.vin = latest.vin
-WHERE latest.rn = 1
-GROUP BY latest.region
+WHERE rn = 1
+GROUP BY region
 ORDER BY median_price
 """, [year, f"%{make}%", f"%{model}%"]).df()
 
@@ -82,27 +73,39 @@ st.caption("Percentages are of listings with known Carfax data -- not every list
 st.table(condition_df)
 
 st.subheader("Browse listings")
-listings_df = con.execute("""
+
+available_trims = con.execute("""
+SELECT DISTINCT trim FROM listings
+WHERE year = ? AND make ILIKE ? AND model ILIKE ? AND trim IS NOT NULL AND trim != ''
+ORDER BY trim
+""", [year, f"%{make}%", f"%{model}%"]).df()["trim"].tolist()
+trim_filter = st.selectbox("Filter by trim", ["All"] + available_trims)
+
+trim_clause = "AND trim = ?" if trim_filter != "All" else ""
+params = [year, f"%{make}%", f"%{model}%"] + ([trim_filter] if trim_filter != "All" else [])
+
+listings_df = con.execute(f"""
 WITH latest AS (
     SELECT *, ROW_NUMBER() OVER (PARTITION BY vin ORDER BY scrape_date DESC) AS rn
     FROM listings
-    WHERE year = ? AND make ILIKE ? AND model ILIKE ?
+    WHERE year = ? AND make ILIKE ? AND model ILIKE ? {trim_clause}
 )
 SELECT
     photo_url, heading, region, price, mileage, exterior_color, interior_color,
-    trim, carfax_clean_title, carfax_1_owner, days_on_market,
+    trim, carfax_clean_title, carfax_1_owner, days_on_market, last_seen_date,
     dealer_name, dealer_city, dealer_state, dealer_phone, dealer_website, url
 FROM latest
 WHERE rn = 1
 ORDER BY price ASC NULLS LAST
-""", [year, f"%{make}%", f"%{model}%"]).df()
+""", params).df()
 
 st.dataframe(
     listings_df,
     column_config={
         "photo_url": st.column_config.ImageColumn("Photo"),
-        "url": st.column_config.LinkColumn("Listing"),
+        "url": st.column_config.LinkColumn("View listing"),
         "dealer_website": st.column_config.LinkColumn("Dealer site"),
+        "last_seen_date": st.column_config.TextColumn("Last confirmed live"),
     },
     hide_index=True,
 )
