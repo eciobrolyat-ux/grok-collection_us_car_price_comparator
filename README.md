@@ -13,7 +13,7 @@ real keys in `config.yaml`. Store these secrets once, ahead of time:
 ```
 keybank set rapidapi_key           # required if "cars_com" is in config.yaml's `sources`
 keybank set marketcheck_api_key    # required if "marketcheck" is in config.yaml's `sources`
-keybank set marketcheck_api-secret # required if "marketcheck" is in config.yaml's `sources`
+keybank set marketcheck_api_secret # required if "marketcheck" is in config.yaml's `sources`
 ```
 
 (run `keybank list` any time to confirm the exact secret names in your vault)
