@@ -5,7 +5,8 @@
 #   marketcheck_api_secret  - required if "marketcheck" is in `sources`
 
 sources:
-  - cars_com
+  # cars_com disabled temporarily -- rapidapi_key isn't stored correctly yet
+  # - cars_com
   - marketcheck
 
 regions:
