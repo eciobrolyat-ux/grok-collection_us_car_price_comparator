@@ -20,6 +20,16 @@ def get_api_keys(config, active_sources):
     return rapid_api_key, marketcheck_api_key, marketcheck_api_secret
 
 
+def _raise_with_body(r):
+    """raise_for_status(), but with the response body attached -- providers
+    put the actual reason (bad scope, wrong plan, malformed auth, ...) in
+    the JSON/text body, which raise_for_status() alone discards."""
+    try:
+        r.raise_for_status()
+    except requests.HTTPError as e:
+        raise requests.HTTPError(f"{e} | response body: {r.text[:500]}") from None
+
+
 def get_marketcheck_access_token(api_key, api_secret):
     """Exchanges the MarketCheck key/secret pair for a short-lived bearer
     token via OAuth2 client-credentials, once per scraper run."""
@@ -28,7 +38,7 @@ def get_marketcheck_access_token(api_key, api_secret):
         auth=(api_key, api_secret),
         data={"grant_type": "client_credentials"},
     )
-    r.raise_for_status()
+    _raise_with_body(r)
     return r.json()["access_token"]
 
 
@@ -113,7 +123,7 @@ def cars_com_search(year, make, model, zip_code, radius, page, api_key):
         "page": page, "page_size": 100
     }
     r = requests.get(url, headers=headers, params=params)
-    r.raise_for_status()
+    _raise_with_body(r)
     raw_listings = r.json().get("data", [])
     return [
         {
@@ -147,7 +157,7 @@ def marketcheck_search(year, make, model, zip_code, radius, page, access_token):
         "rows": rows, "start": (page - 1) * rows,
     }
     r = requests.get(url, headers=headers, params=params)
-    r.raise_for_status()
+    _raise_with_body(r)
     raw_listings = r.json().get("listings", [])
     return [
         {
