@@ -79,16 +79,29 @@ SELECT DISTINCT trim FROM listings
 WHERE year = ? AND make ILIKE ? AND model ILIKE ? AND trim IS NOT NULL AND trim != ''
 ORDER BY trim
 """, [year, f"%{make}%", f"%{model}%"]).df()["trim"].tolist()
-trim_filter = st.selectbox("Filter by trim", ["All"] + available_trims)
+available_regions = con.execute("""
+SELECT DISTINCT region FROM listings
+WHERE year = ? AND make ILIKE ? AND model ILIKE ?
+ORDER BY region
+""", [year, f"%{make}%", f"%{model}%"]).df()["region"].tolist()
+
+col1, col2 = st.columns(2)
+trim_filter = col1.selectbox("Filter by trim", ["All"] + available_trims)
+region_filter = col2.multiselect("Filter by region", available_regions)
 
 trim_clause = "AND trim = ?" if trim_filter != "All" else ""
-params = [year, f"%{make}%", f"%{model}%"] + ([trim_filter] if trim_filter != "All" else [])
+region_clause = f"AND region IN ({', '.join(['?'] * len(region_filter))})" if region_filter else ""
+params = (
+    [year, f"%{make}%", f"%{model}%"]
+    + ([trim_filter] if trim_filter != "All" else [])
+    + region_filter
+)
 
 listings_df = con.execute(f"""
 WITH latest AS (
     SELECT *, ROW_NUMBER() OVER (PARTITION BY vin ORDER BY scrape_date DESC) AS rn
     FROM listings
-    WHERE year = ? AND make ILIKE ? AND model ILIKE ? {trim_clause}
+    WHERE year = ? AND make ILIKE ? AND model ILIKE ? {trim_clause} {region_clause}
 )
 SELECT
     photo_url, heading, region, price, mileage, exterior_color, interior_color,
