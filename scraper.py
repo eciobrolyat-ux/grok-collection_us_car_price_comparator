@@ -42,8 +42,28 @@ def get_marketcheck_access_token(api_key, api_secret):
     return r.json()["access_token"]
 
 
+LISTINGS_NEW_COLUMNS = [
+    ("heading", "VARCHAR"),
+    ("interior_color", "VARCHAR"),
+    ("body_type", "VARCHAR"),
+    ("photo_url", "VARCHAR"),
+    ("carfax_1_owner", "BOOLEAN"),
+    ("carfax_clean_title", "BOOLEAN"),
+    ("ref_price", "INTEGER"),
+    ("price_change_percent", "DOUBLE"),
+    ("first_seen_date", "VARCHAR"),
+    ("last_seen_date", "VARCHAR"),
+    ("dealer_name", "VARCHAR"),
+    ("dealer_city", "VARCHAR"),
+    ("dealer_state", "VARCHAR"),
+    ("dealer_phone", "VARCHAR"),
+    ("dealer_website", "VARCHAR"),
+    ("dealer_type", "VARCHAR"),
+]
+
+
 def ensure_schema(con):
-    con.execute("""
+    con.execute(f"""
     CREATE TABLE IF NOT EXISTS listings (
         scrape_date DATE,
         region VARCHAR,
@@ -58,9 +78,16 @@ def ensure_schema(con):
         exterior_color VARCHAR,
         days_on_market INTEGER,
         url VARCHAR,
-        raw_json VARCHAR
+        raw_json VARCHAR,
+        {", ".join(f"{name} {sql_type}" for name, sql_type in LISTINGS_NEW_COLUMNS)}
     )
     """)
+    # ALTER for tables that already existed before these columns were added --
+    # CREATE TABLE IF NOT EXISTS above is a no-op on an existing table, so
+    # this is what actually brings older databases up to date without
+    # losing previously scraped data.
+    for name, sql_type in LISTINGS_NEW_COLUMNS:
+        con.execute(f"ALTER TABLE listings ADD COLUMN IF NOT EXISTS {name} {sql_type}")
     # Decoded VIN specs are permanent, unlike the daily price snapshots in
     # `listings` above, so they get their own table and are decoded once.
     con.execute("""
@@ -136,6 +163,13 @@ def cars_com_search(year, make, model, zip_code, radius, page, api_key):
             "days_on_market": car.get("days_on_lot"),
             "url": car.get("listing_url", ""),
             "raw": car,
+            # cars.com's RapidAPI response doesn't carry these fields
+            "heading": "", "interior_color": "", "body_type": "", "photo_url": "",
+            "carfax_1_owner": None, "carfax_clean_title": None,
+            "ref_price": None, "price_change_percent": None,
+            "first_seen_date": "", "last_seen_date": "",
+            "dealer_name": "", "dealer_city": "", "dealer_state": "",
+            "dealer_phone": "", "dealer_website": "", "dealer_type": "",
         }
         for car in raw_listings
     ], page_size
@@ -174,6 +208,22 @@ def marketcheck_search(year, make, model, zip_code, radius, page, api_key):
             "days_on_market": car.get("dom"),
             "url": car.get("vdp_url", ""),
             "raw": car,
+            "heading": car.get("heading", ""),
+            "interior_color": car.get("interior_color", ""),
+            "body_type": (car.get("build") or {}).get("body_type", ""),
+            "photo_url": ((car.get("media") or {}).get("photo_links") or [""])[0],
+            "carfax_1_owner": car.get("carfax_1_owner"),
+            "carfax_clean_title": car.get("carfax_clean_title"),
+            "ref_price": car.get("ref_price"),
+            "price_change_percent": car.get("price_change_percent"),
+            "first_seen_date": car.get("first_seen_at_date", ""),
+            "last_seen_date": car.get("last_seen_at_date", ""),
+            "dealer_name": (car.get("dealer") or {}).get("name", ""),
+            "dealer_city": (car.get("dealer") or {}).get("city", ""),
+            "dealer_state": (car.get("dealer") or {}).get("state", ""),
+            "dealer_phone": (car.get("dealer") or {}).get("phone", ""),
+            "dealer_website": (car.get("dealer") or {}).get("website", ""),
+            "dealer_type": (car.get("dealer") or {}).get("dealer_type", ""),
         }
         for car in raw_listings
     ], rows
@@ -198,8 +248,18 @@ def expand_target_years(target):
     return [target]
 
 
+LISTINGS_BASE_COLUMNS = [
+    "scrape_date", "region", "source", "vin", "year", "make", "model",
+    "trim", "price", "mileage", "exterior_color", "days_on_market", "url", "raw_json",
+]
+
+
 def scrape_target(con, get_decoded, search_fn, auth_value, source_name, region, target, today):
     page = 1
+    columns = LISTINGS_BASE_COLUMNS + [name for name, _ in LISTINGS_NEW_COLUMNS]
+    placeholders = ", ".join(["?"] * len(columns))
+    insert_sql = f"INSERT INTO listings ({', '.join(columns)}) VALUES ({placeholders})"
+
     while True:
         listings, page_size = search_fn(
             target["year"], target["make"], target["model"],
@@ -209,16 +269,14 @@ def scrape_target(con, get_decoded, search_fn, auth_value, source_name, region, 
             break
         for car in listings:
             decoded = get_decoded(car["vin"])
-            con.execute("""
-            INSERT INTO listings VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-            )
-            """, [
+            base_values = [
                 today, region["name"], source_name, car["vin"],
                 target["year"], target["make"], target["model"],
                 car["trim"], car["price"], car["mileage"], car["exterior_color"],
                 car["days_on_market"], car["url"], json.dumps(car["raw"]),
-            ])
+            ]
+            extra_values = [car[name] for name, _ in LISTINGS_NEW_COLUMNS]
+            con.execute(insert_sql, base_values + extra_values)
         if len(listings) < page_size:
             break
         page += 1

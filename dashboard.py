@@ -36,6 +36,54 @@ ORDER BY median_price
 st.subheader("Latest snapshot by region")
 st.table(df)
 
+condition_df = con.execute("""
+WITH latest AS (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY vin ORDER BY scrape_date DESC) AS rn
+    FROM listings
+    WHERE year = ? AND make ILIKE ? AND model ILIKE ?
+)
+SELECT
+    region,
+    count(*) AS num_listings,
+    100.0 * count(CASE WHEN carfax_clean_title THEN 1 END) / NULLIF(count(carfax_clean_title), 0) AS pct_clean_title,
+    100.0 * count(CASE WHEN carfax_1_owner THEN 1 END) / NULLIF(count(carfax_1_owner), 0) AS pct_one_owner,
+    avg(price_change_percent) AS avg_price_change_pct
+FROM latest
+WHERE rn = 1
+GROUP BY region
+ORDER BY region
+""", [year, f"%{make}%", f"%{model}%"]).df()
+
+st.subheader("Condition & deal quality by region")
+st.caption("Percentages are of listings with known Carfax data -- not every listing includes it.")
+st.table(condition_df)
+
+st.subheader("Browse listings")
+listings_df = con.execute("""
+WITH latest AS (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY vin ORDER BY scrape_date DESC) AS rn
+    FROM listings
+    WHERE year = ? AND make ILIKE ? AND model ILIKE ?
+)
+SELECT
+    photo_url, heading, region, price, mileage, exterior_color, interior_color,
+    trim, carfax_clean_title, carfax_1_owner, days_on_market,
+    dealer_name, dealer_city, dealer_state, dealer_phone, dealer_website, url
+FROM latest
+WHERE rn = 1
+ORDER BY price ASC NULLS LAST
+""", [year, f"%{make}%", f"%{model}%"]).df()
+
+st.dataframe(
+    listings_df,
+    column_config={
+        "photo_url": st.column_config.ImageColumn("Photo"),
+        "url": st.column_config.LinkColumn("Listing"),
+        "dealer_website": st.column_config.LinkColumn("Dealer site"),
+    },
+    hide_index=True,
+)
+
 trend_df = con.execute("""
 SELECT scrape_date, region, median(price) AS median_price
 FROM listings
