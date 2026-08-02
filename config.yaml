@@ -10,30 +10,34 @@ sources:
   - marketcheck
 
 regions:
+  atlanta:
+    zip: "30303"
+    radius: 100
+    name: "Atlanta GA"
+  miami:
+    zip: "33101"
+    radius: 100
+    name: "Miami FL"
+  new_york_city:
+    zip: "10001"
+    radius: 100
+    name: "New York NY"
   washington_dc:
     zip: "20001"
     radius: 100
     name: "Washington DC"
-  # houston:
-  #   zip: "77002"
-  #   radius: 100
-  #   name: "Houston TX"
-  # los_angeles:
-  #   zip: "90001"
-  #   radius: 100
-  #   name: "Los Angeles CA"
-  # miami:
-  #   zip: "33101"
-  #   radius: 100
-  #   name: "Miami FL"
-  # chicago:
-  #   zip: "60601"
-  #   radius: 100
-  #   name: "Chicago IL"
-  # denver:
-  #   zip: "80202"
-  #   radius: 100
-  #   name: "Denver CO"
+  chicago:
+    zip: "60601"
+    radius: 100
+    name: "Chicago IL"
+  los_angeles:
+    zip: "90001"
+    radius: 100
+    name: "Los Angeles CA"
+  phoenix:
+    zip: "85001"
+    radius: 100
+    name: "Phoenix AZ"
 
 targets:
   - year: 2015
