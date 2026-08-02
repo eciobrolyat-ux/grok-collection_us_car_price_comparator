@@ -1,4 +1,4 @@
-import os, sys, requests, yaml, duckdb, time
+import os, sys, json, requests, yaml, duckdb, time
 from datetime import datetime
 from tqdm import tqdm
 from vin_decoder import decode_vin_nhtsa
@@ -217,7 +217,7 @@ def scrape_target(con, get_decoded, search_fn, auth_value, source_name, region, 
                 today, region["name"], source_name, car["vin"],
                 target["year"], target["make"], target["model"],
                 car["trim"], car["price"], car["mileage"], car["exterior_color"],
-                car["days_on_market"], car["url"], str(car["raw"]),
+                car["days_on_market"], car["url"], json.dumps(car["raw"]),
             ])
         if len(listings) < page_size:
             break
