@@ -40,6 +40,10 @@ needs more than one day of data to plot anything.
 Re-running the scraper on the same day replaces that day's rows for each region/source
 rather than duplicating them, so it's safe to re-run after a failed or partial scrape.
 
+`python scraper.py` skips scraping entirely (no API calls, no keybank prompt) if the
+cached data is less than 30 days old -- useful for a limited API quota. Use
+`python scraper.py --force` to scrape anyway regardless of cache age.
+
 ## Data sources
 
 - **cars.com** (via RapidAPI)

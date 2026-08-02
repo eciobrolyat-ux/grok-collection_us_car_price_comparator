@@ -283,7 +283,40 @@ def scrape_target(con, get_decoded, search_fn, auth_value, source_name, region, 
         time.sleep(1.5)  # be nice
 
 
+MAX_CACHE_AGE_DAYS = 30
+
+
+def get_last_scrape_date(con):
+    result = con.execute("SELECT MAX(scrape_date) FROM listings").fetchone()
+    return result[0] if result else None
+
+
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--force", action="store_true",
+        help=f"Scrape even if cached data is less than {MAX_CACHE_AGE_DAYS} days old.",
+    )
+    args = parser.parse_args()
+
+    os.makedirs("data", exist_ok=True)
+    con = duckdb.connect("data/listings.duckdb")
+    ensure_schema(con)
+
+    today = datetime.today().date()
+    last_scrape_date = get_last_scrape_date(con)
+    if not args.force and last_scrape_date is not None:
+        age_days = (today - last_scrape_date).days
+        if age_days < MAX_CACHE_AGE_DAYS:
+            print(
+                f"Cached data is {age_days} day(s) old (last scraped {last_scrape_date}) "
+                f"-- still under the {MAX_CACHE_AGE_DAYS}-day limit, skipping scrape."
+            )
+            print("Run with --force to scrape anyway.")
+            con.close()
+            return
+
     config = load_config()
     active_sources = config.get("sources", ["cars_com"])
     rapid_api_key, marketcheck_api_key, marketcheck_api_secret = get_api_keys(config, active_sources)
@@ -294,12 +327,8 @@ def main():
     if "marketcheck" in active_sources:
         auth_values["marketcheck"] = marketcheck_api_key
 
-    os.makedirs("data", exist_ok=True)
-    con = duckdb.connect("data/listings.duckdb")
-    ensure_schema(con)
     get_decoded = make_vin_cache(con)
 
-    today = datetime.today().date()
     failures = []
 
     year_targets = [yt for target in config["targets"] for yt in expand_target_years(target)]
