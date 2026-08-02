@@ -43,10 +43,12 @@ rather than duplicating them, so it's safe to re-run after a failed or partial s
 ## Data sources
 
 - **cars.com** (via RapidAPI)
-- **MarketCheck** — authenticates via OAuth2 client-credentials (key/secret exchanged for a
-  short-lived bearer token once per scraper run). Field names in `scraper.py` follow
-  MarketCheck's documented v2 API schema; verify against a live response for your
-  account/plan before relying on it in production.
+- **MarketCheck** — authenticates via `api_key` as a query parameter. (OAuth2
+  client-credentials is also implemented in `get_marketcheck_access_token()` but currently
+  unused -- it returned "invalid authentication credentials" on the search endpoint,
+  likely a plan-tier restriction; worth revisiting if you upgrade plans.) Field names in
+  `scraper.py` follow MarketCheck's documented v2 API schema; verify against a live
+  response for your account/plan before relying on it in production.
 
 Both sources tag rows with a `source` column, so results can be compared or filtered by
 provider in the dashboard queries.

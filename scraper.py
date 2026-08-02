@@ -140,8 +140,12 @@ def cars_com_search(year, make, model, zip_code, radius, page, api_key):
     ]
 
 
-def marketcheck_search(year, make, model, zip_code, radius, page, access_token):
+def marketcheck_search(year, make, model, zip_code, radius, page, api_key):
     """MarketCheck active listings search. Returns a list of normalized dicts.
+
+    Uses the basic api_key-as-query-param auth rather than OAuth2
+    client-credentials -- the latter returned "invalid authentication
+    credentials" on the search endpoint, likely a plan-tier restriction.
 
     NOTE: field names below follow MarketCheck's documented v2 schema
     (docs.marketcheck.com/docs/api/cars). Verify against a live response
@@ -149,14 +153,14 @@ def marketcheck_search(year, make, model, zip_code, radius, page, access_token):
     """
     url = "https://api.marketcheck.com/v2/search/car/active"
     rows = 50
-    headers = {"Authorization": f"Bearer {access_token}"}
     params = {
+        "api_key": api_key,
         "year": year, "make": make, "model": model,
         "zip": zip_code, "radius": radius,
         "car_type": "used",
         "rows": rows, "start": (page - 1) * rows,
     }
-    r = requests.get(url, headers=headers, params=params)
+    r = requests.get(url, params=params)
     _raise_with_body(r)
     raw_listings = r.json().get("listings", [])
     return [
@@ -214,7 +218,7 @@ def main():
     if "cars_com" in active_sources:
         auth_values["cars_com"] = rapid_api_key
     if "marketcheck" in active_sources:
-        auth_values["marketcheck"] = get_marketcheck_access_token(marketcheck_api_key, marketcheck_api_secret)
+        auth_values["marketcheck"] = marketcheck_api_key
 
     os.makedirs("data", exist_ok=True)
     con = duckdb.connect("data/listings.duckdb")
