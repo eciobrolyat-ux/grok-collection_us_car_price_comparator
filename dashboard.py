@@ -18,6 +18,10 @@ SELECT
     median(latest.price) AS median_price,
     avg(latest.mileage) AS avg_mileage,
     avg(latest.price::DOUBLE / NULLIF(latest.mileage, 0)) AS dollar_per_mile,
+    sum(CASE
+        WHEN latest.trim ILIKE '%Z51%' OR v.trim ILIKE '%Z51%' OR v.series ILIKE '%Z51%'
+        THEN 1 ELSE 0
+    END) AS count_z51,
     100.0 * sum(CASE
         WHEN latest.trim ILIKE '%Z51%' OR v.trim ILIKE '%Z51%' OR v.series ILIKE '%Z51%'
         THEN 1 ELSE 0
