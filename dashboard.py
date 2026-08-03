@@ -7,11 +7,22 @@ year = st.sidebar.number_input("Year", 2000, 2025, 2015)
 make = st.sidebar.text_input("Make", "Chevrolet")
 model = st.sidebar.text_input("Model", "Corvette")
 
-df = con.execute("""
+available_trims = con.execute("""
+SELECT DISTINCT trim FROM listings
+WHERE year = ? AND make ILIKE ? AND model ILIKE ? AND trim IS NOT NULL AND trim != ''
+ORDER BY trim
+""", [year, f"%{make}%", f"%{model}%"]).df()["trim"].tolist()
+trim_filter = st.sidebar.selectbox("Trim", ["All"] + available_trims)
+
+trim_clause = "AND trim = ?" if trim_filter != "All" else ""
+trim_params = [trim_filter] if trim_filter != "All" else []
+base_params = [year, f"%{make}%", f"%{model}%"] + trim_params
+
+df = con.execute(f"""
 WITH latest AS (
     SELECT *, ROW_NUMBER() OVER (PARTITION BY vin ORDER BY scrape_date DESC) AS rn
     FROM listings
-    WHERE year = ? AND make ILIKE ? AND model ILIKE ?
+    WHERE year = ? AND make ILIKE ? AND model ILIKE ? {trim_clause}
 )
 SELECT
     region,
@@ -22,22 +33,22 @@ FROM latest
 WHERE rn = 1
 GROUP BY region
 ORDER BY median_price
-""", [year, f"%{make}%", f"%{model}%"]).df()
+""", base_params).df()
 
 st.subheader("Latest snapshot by region")
 st.table(df)
 
-trim_price_df = con.execute("""
+trim_price_df = con.execute(f"""
 WITH latest AS (
     SELECT *, ROW_NUMBER() OVER (PARTITION BY vin ORDER BY scrape_date DESC) AS rn
     FROM listings
-    WHERE year = ? AND make ILIKE ? AND model ILIKE ?
+    WHERE year = ? AND make ILIKE ? AND model ILIKE ? {trim_clause}
 )
 SELECT trim, region, median(price) AS median_price, count(*) AS num_listings
 FROM latest
 WHERE rn = 1 AND trim IS NOT NULL AND trim != ''
 GROUP BY trim, region
-""", [year, f"%{make}%", f"%{model}%"]).df()
+""", base_params).df()
 
 st.subheader("Median price by trim and region")
 st.caption("Comparing the same trim across regions avoids mixing base and loaded trims into one number.")
@@ -50,11 +61,11 @@ if not trim_price_df.empty:
 else:
     st.caption("No trim data available for this filter.")
 
-condition_df = con.execute("""
+condition_df = con.execute(f"""
 WITH latest AS (
     SELECT *, ROW_NUMBER() OVER (PARTITION BY vin ORDER BY scrape_date DESC) AS rn
     FROM listings
-    WHERE year = ? AND make ILIKE ? AND model ILIKE ?
+    WHERE year = ? AND make ILIKE ? AND model ILIKE ? {trim_clause}
 )
 SELECT
     region,
@@ -66,7 +77,7 @@ FROM latest
 WHERE rn = 1
 GROUP BY region
 ORDER BY region
-""", [year, f"%{make}%", f"%{model}%"]).df()
+""", base_params).df()
 
 st.subheader("Condition & deal quality by region")
 st.caption("Percentages are of listings with known Carfax data -- not every listing includes it.")
@@ -74,28 +85,15 @@ st.table(condition_df)
 
 st.subheader("Browse listings")
 
-available_trims = con.execute("""
-SELECT DISTINCT trim FROM listings
-WHERE year = ? AND make ILIKE ? AND model ILIKE ? AND trim IS NOT NULL AND trim != ''
-ORDER BY trim
-""", [year, f"%{make}%", f"%{model}%"]).df()["trim"].tolist()
 available_regions = con.execute("""
 SELECT DISTINCT region FROM listings
 WHERE year = ? AND make ILIKE ? AND model ILIKE ?
 ORDER BY region
 """, [year, f"%{make}%", f"%{model}%"]).df()["region"].tolist()
+region_filter = st.multiselect("Filter by region", available_regions)
 
-col1, col2 = st.columns(2)
-trim_filter = col1.selectbox("Filter by trim", ["All"] + available_trims)
-region_filter = col2.multiselect("Filter by region", available_regions)
-
-trim_clause = "AND trim = ?" if trim_filter != "All" else ""
 region_clause = f"AND region IN ({', '.join(['?'] * len(region_filter))})" if region_filter else ""
-params = (
-    [year, f"%{make}%", f"%{model}%"]
-    + ([trim_filter] if trim_filter != "All" else [])
-    + region_filter
-)
+listings_params = base_params + region_filter
 
 listings_df = con.execute(f"""
 WITH latest AS (
@@ -110,7 +108,7 @@ SELECT
 FROM latest
 WHERE rn = 1
 ORDER BY price ASC NULLS LAST
-""", params).df()
+""", listings_params).df()
 
 st.dataframe(
     listings_df,
@@ -123,13 +121,13 @@ st.dataframe(
     hide_index=True,
 )
 
-trend_df = con.execute("""
+trend_df = con.execute(f"""
 SELECT scrape_date, region, median(price) AS median_price
 FROM listings
-WHERE year = ? AND make ILIKE ? AND model ILIKE ?
+WHERE year = ? AND make ILIKE ? AND model ILIKE ? {trim_clause}
 GROUP BY scrape_date, region
 ORDER BY scrape_date
-""", [year, f"%{make}%", f"%{model}%"]).df()
+""", base_params).df()
 
 st.subheader("Median price trend over time")
 if trend_df["scrape_date"].nunique() > 1:
