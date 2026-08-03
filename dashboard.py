@@ -113,9 +113,8 @@ WITH latest AS (
     WHERE year = ? AND make ILIKE ? AND model ILIKE ? {filter_clause}
 )
 SELECT
-    photo_url, heading, region, price, mileage, exterior_color, interior_color,
-    trim, carfax_clean_title, carfax_1_owner, days_on_market, last_seen_date,
-    dealer_name, dealer_city, dealer_state, dealer_phone, dealer_website, url
+    photo_url, region, price, mileage, exterior_color, interior_color,
+    trim, days_on_market, last_seen_date, url
 FROM latest
 WHERE rn = 1
 ORDER BY price ASC NULLS LAST
@@ -126,7 +125,6 @@ st.dataframe(
     column_config={
         "photo_url": st.column_config.ImageColumn("Photo"),
         "url": st.column_config.LinkColumn("View listing"),
-        "dealer_website": st.column_config.LinkColumn("Dealer site"),
         "last_seen_date": st.column_config.TextColumn("Last confirmed live"),
     },
     hide_index=True,
