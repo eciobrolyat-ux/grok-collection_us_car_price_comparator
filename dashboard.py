@@ -130,6 +130,54 @@ st.dataframe(
     hide_index=True,
 )
 
+st.subheader("Regional price gaps (arbitrage opportunities)")
+st.caption(
+    "Scans all years/trims for the current make/model -- not limited to the Year/Trim "
+    "filters above. For each year+trim, compares the cheapest and priciest low-mileage "
+    "examples; only counts it if they're in different regions."
+)
+gap_col1, gap_col2 = st.columns(2)
+min_gap = gap_col1.number_input("Minimum price gap ($)", min_value=0, value=10_000, step=1_000)
+max_mileage = gap_col2.number_input("Maximum mileage", min_value=0, value=5_000, step=1_000)
+
+gap_df = con.execute("""
+WITH latest AS (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY vin ORDER BY scrape_date DESC) AS rn
+    FROM listings
+    WHERE make ILIKE ? AND model ILIKE ? AND mileage < ?
+)
+SELECT
+    year, trim,
+    min(price) AS cheap_price,
+    max(price) AS expensive_price,
+    max(price) - min(price) AS price_gap,
+    arg_min(region, price) AS cheap_region,
+    arg_max(region, price) AS expensive_region,
+    arg_min(mileage, price) AS cheap_mileage,
+    arg_max(mileage, price) AS expensive_mileage,
+    arg_min(url, price) AS cheap_url,
+    arg_max(url, price) AS expensive_url,
+    count(*) AS num_listings
+FROM latest
+WHERE rn = 1 AND trim IS NOT NULL AND trim != '' AND price IS NOT NULL
+GROUP BY year, trim
+HAVING max(price) - min(price) >= ?
+   AND arg_min(region, price) != arg_max(region, price)
+ORDER BY price_gap DESC
+""", [f"%{make}%", f"%{model}%", max_mileage, min_gap]).df()
+
+if gap_df.empty:
+    st.caption(f"No ${min_gap:,}+ regional gaps found among listings under {max_mileage:,} miles.")
+else:
+    st.dataframe(
+        gap_df,
+        column_config={
+            "cheap_url": st.column_config.LinkColumn("Cheap listing"),
+            "expensive_url": st.column_config.LinkColumn("Expensive listing"),
+        },
+        hide_index=True,
+    )
+
 trend_df = con.execute(f"""
 SELECT scrape_date, region, median(price) AS median_price
 FROM listings
