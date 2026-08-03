@@ -3,9 +3,20 @@ import streamlit as st, duckdb, pandas as pd
 con = duckdb.connect("data/listings.duckdb", read_only=True)
 
 st.title("US Car Price Comparator")
-year = st.sidebar.number_input("Year", 2000, 2025, 2015)
 make = st.sidebar.text_input("Make", "Chevrolet")
 model = st.sidebar.text_input("Model", "Corvette")
+
+available_years = con.execute("""
+SELECT DISTINCT year FROM listings
+WHERE make ILIKE ? AND model ILIKE ?
+ORDER BY year DESC
+""", [f"%{make}%", f"%{model}%"]).df()["year"].tolist()
+
+if available_years:
+    year = st.sidebar.selectbox("Year", available_years)
+else:
+    year = st.sidebar.number_input("Year", 1950, 2030, 2017)
+    st.sidebar.caption("No scraped data yet for this make/model -- showing a manual year picker.")
 
 available_trims = con.execute("""
 SELECT DISTINCT trim FROM listings
