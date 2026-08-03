@@ -14,30 +14,30 @@ regions:
     zip: "30303"
     radius: 100
     name: "Atlanta GA"
-  miami:
-    zip: "33101"
-    radius: 100
-    name: "Miami FL"
-  new_york_city:
-    zip: "10001"
-    radius: 100
-    name: "New York NY"
-  washington_dc:
-    zip: "20001"
-    radius: 100
-    name: "Washington DC"
-  chicago:
-    zip: "60601"
-    radius: 100
-    name: "Chicago IL"
-  los_angeles:
-    zip: "90001"
-    radius: 100
-    name: "Los Angeles CA"
-  phoenix:
-    zip: "85001"
-    radius: 100
-    name: "Phoenix AZ"
+  # miami:
+  #   zip: "33101"
+  #   radius: 100
+  #   name: "Miami FL"
+  # new_york_city:
+  #   zip: "10001"
+  #   radius: 100
+  #   name: "New York NY"
+  # washington_dc:
+  #   zip: "20001"
+  #   radius: 100
+  #   name: "Washington DC"
+  # chicago:
+  #   zip: "60601"
+  #   radius: 100
+  #   name: "Chicago IL"
+  # los_angeles:
+  #   zip: "90001"
+  #   radius: 100
+  #   name: "Los Angeles CA"
+  # phoenix:
+  #   zip: "85001"
+  #   radius: 100
+  #   name: "Phoenix AZ"
 
 # A target can use a single `year`, or `year_min`/`year_max` for a range --
 # the scraper issues one search per year in the range (no reliance on a
@@ -49,11 +49,17 @@ regions:
 # Each year x region x source is a separate API call, so widening this
 # multiplies quota usage fast (e.g. 10 years x 7 regions = 70 calls for
 # just this one target).
+# C10 test: checking whether MarketCheck carries classic-truck inventory at
+# all before committing more quota. Corvette target commented out below to
+# keep this run cheap and avoid re-scraping data that's still fresh.
 targets:
-  - year_min: 2017
-    year_max: 2026
+  - year: 1985
     make: Chevrolet
-    model: Corvette
+    model: C10
+  # - year_min: 2017
+  #   year_max: 2026
+  #   make: Chevrolet
+  #   model: Corvette
   # - year: 2020
   #   make: Ford
   #   model: F-150
