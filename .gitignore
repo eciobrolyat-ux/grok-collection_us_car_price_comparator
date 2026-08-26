@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/*.duckdb
+data/*.duckdb.wal
+data/vin_cache.json
+*.log
+.DS_Store

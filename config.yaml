@@ -1,15 +1,44 @@
-rapidapi_key: "put-your-key-here-later"
+# API key lives in .env as RAPIDAPI_KEY — do not put secrets here.
+
+destination:
+  name: Nashville TN
+  zip: "37201"
+  state: TN
+
 regions:
-  washington_dc:
-    zip: "20001"
-    radius: 100
-    name: "Washington DC"
+  nashville:
+    zip: "37201"
+    radius: 75
+    name: Nashville TN
+    role: destination
+  chattanooga:
+    zip: "37402"
+    radius: 75
+    name: Chattanooga TN
+    role: destination
   houston:
     zip: "77002"
     radius: 100
-    name: "Houston TX"
+    name: Houston TX
+    role: source
+  dallas:
+    zip: "75201"
+    radius: 100
+    name: Dallas TX
+    role: source
+  washington_dc:
+    zip: "20001"
+    radius: 100
+    name: Washington DC
+    role: source
 
 targets:
   - year: 2015
     make: Chevrolet
     model: Corvette
+  - year: 2018
+    make: Toyota
+    model: Camry
+  - year: 2019
+    make: Ford
+    model: F-150
