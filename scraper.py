@@ -69,7 +69,7 @@ def connect() -> duckdb.DuckDBPyConnection:
         """
     )
     existing = {
-        row[0]
+        row[1]
         for row in con.execute("PRAGMA table_info('listings')").fetchall()
     }
     for col, typ in [

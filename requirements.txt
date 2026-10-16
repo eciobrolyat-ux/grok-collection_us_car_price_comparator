@@ -5,3 +5,4 @@ pyyaml
 tqdm
 streamlit
 python-dotenv
+pytest
